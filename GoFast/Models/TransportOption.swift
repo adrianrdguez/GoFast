@@ -13,7 +13,7 @@ import CoreLocation
 /// Represents a specific transport option for getting to the airport.
 /// Includes timing estimates, cost information, reliability metrics, and
 /// deep-link URLs for opening external transport apps.
-struct TransportOption: Codable, Equatable, Identifiable {
+struct TransportOption: Codable, Equatable, Identifiable, Hashable {
     
     // MARK: - Identification
     
