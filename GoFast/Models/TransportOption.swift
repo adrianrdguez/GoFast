@@ -13,7 +13,7 @@ import CoreLocation
 /// Represents a specific transport option for getting to the airport.
 /// Includes timing estimates, cost information, reliability metrics, and
 /// deep-link URLs for opening external transport apps.
-struct TransportOption: Codable, Equatable, Identifiable, Hashable {
+struct TransportOption: Codable, Equatable, Identifiable {
     
     // MARK: - Identification
     
@@ -71,6 +71,16 @@ struct TransportOption: Codable, Equatable, Identifiable, Hashable {
     
     /// Destination airport
     let destinationAirport: Airport
+    
+    // MARK: - Hashable
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: TransportOption, rhs: TransportOption) -> Bool {
+        lhs.id == rhs.id
+    }
     
     // MARK: - Computed Properties
     
@@ -235,7 +245,7 @@ enum TransportMode: String, Codable, CaseIterable {
 // MARK: - Cost Estimate
 
 /// Represents cost information for a transport option.
-enum CostEstimate: Codable, Equatable {
+enum CostEstimate: Equatable {
     /// Free transport (personal car, walking)
     case free
     
@@ -269,10 +279,59 @@ enum CostEstimate: Codable, Equatable {
     }
 }
 
+// MARK: - Codable Implementation for CostEstimate
+
+extension CostEstimate: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case type, amount, min, max, currency
+    }
+    
+    private enum CostType: String, Codable {
+        case free, fixed, range
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        switch self {
+        case .free:
+            try container.encode(CostType.free, forKey: .type)
+        case .fixed(let amount, let currency):
+            try container.encode(CostType.fixed, forKey: .type)
+            try container.encode(amount, forKey: .amount)
+            try container.encode(currency, forKey: .currency)
+        case .range(let min, let max, let currency):
+            try container.encode(CostType.range, forKey: .type)
+            try container.encode(min, forKey: .min)
+            try container.encode(max, forKey: .max)
+            try container.encode(currency, forKey: .currency)
+        }
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(CostType.self, forKey: .type)
+        
+        switch type {
+        case .free:
+            self = .free
+        case .fixed:
+            let amount = try container.decode(Double.self, forKey: .amount)
+            let currency = try container.decode(String.self, forKey: .currency)
+            self = .fixed(amount: amount, currency: currency)
+        case .range:
+            let min = try container.decode(Double.self, forKey: .min)
+            let max = try container.decode(Double.self, forKey: .max)
+            let currency = try container.decode(String.self, forKey: .currency)
+            self = .range(min: min, max: max, currency: currency)
+        }
+    }
+}
+
 // MARK: - Location Coordinate
 
-/// Codable wrapper for CLLocationCoordinate2D
-struct LocationCoordinate: Codable, Equatable {
+/// Codable and Hashable wrapper for CLLocationCoordinate2D
+struct LocationCoordinate: Codable, Equatable, Hashable {
     let latitude: Double
     let longitude: Double
     
