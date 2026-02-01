@@ -1,0 +1,17 @@
+//
+//  GoFastTests.swift
+//  GoFastTests
+//
+//  Created by Ucademy on 1/2/26.
+//
+
+import Testing
+@testable import GoFast
+
+struct GoFastTests {
+
+    @Test func example() async throws {
+        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+    }
+
+}
