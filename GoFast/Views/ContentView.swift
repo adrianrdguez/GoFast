@@ -31,6 +31,11 @@ struct ContentView: View {
                         
                         Divider()
                         
+                        // Widget controls
+                        widgetControlsSection
+                        
+                        Divider()
+                        
                         // Flights list
                         flightsListSection
                     }
@@ -173,6 +178,50 @@ struct ContentView: View {
                         .foregroundColor(.red)
                 }
                 .padding(.vertical, 4)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    
+    // MARK: - Widget Controls
+    
+    private var widgetControlsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Widget")
+                .font(.headline)
+            
+            HStack(spacing: 12) {
+                Button {
+                    viewModel.saveFlightToWidget()
+                } label: {
+                    Label("Save to Widget", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.flights.isEmpty)
+                
+                Button {
+                    viewModel.clearWidgetData()
+                } label: {
+                    Label("Clear Widget", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(.bordered)
+                
+                Button {
+                    viewModel.refreshWidget()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+            }
+            
+            if !viewModel.isWidgetConfigured {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundColor(.orange)
+                    Text("App Groups not configured. Widget won't work.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

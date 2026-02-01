@@ -135,6 +135,37 @@ class FlightDebugViewModel: ObservableObject {
         showDebugDetails[flightId] ?? false
     }
     
+    // MARK: - Widget Integration
+    
+    /// Saves the first flight in the list to the widget via App Groups
+    func saveFlightToWidget() {
+        guard let flight = flights.first else {
+            errorMessage = "No flights to save. Add a flight first."
+            return
+        }
+        
+        SharedDataService.shared.saveFlight(flight)
+        statusMessage = "Flight saved to widget"
+        errorMessage = nil
+    }
+    
+    /// Clears all widget data
+    func clearWidgetData() {
+        SharedDataService.shared.clearFlight()
+        statusMessage = "Widget data cleared"
+    }
+    
+    /// Manually triggers a widget refresh
+    func refreshWidget() {
+        SharedDataService.shared.reloadWidget()
+        statusMessage = "Widget refresh triggered"
+    }
+    
+    /// Checks if App Groups is properly configured for widget
+    var isWidgetConfigured: Bool {
+        SharedDataService.shared.isConfigured
+    }
+    
     // MARK: - Helpers
     
     private func updateStatusMessage() {
