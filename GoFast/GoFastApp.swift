@@ -2,8 +2,6 @@
 //  GoFastApp.swift
 //  GoFast
 //
-//  Created by Ucademy on 1/2/26.
-//
 
 import SwiftUI
 
@@ -11,7 +9,7 @@ import SwiftUI
 struct GoFastApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            OnboardingView()
         }
     }
 }
