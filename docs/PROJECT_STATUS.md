@@ -1,7 +1,7 @@
 # GoFast - Project Status
 
 **Last Updated**: 2026-02-02  
-**Current Status**: ✅ Phase 1 Complete - Onboarding & Core Infrastructure
+**Current Status**: ✅ Phase 1 Complete - Onboarding & Core Infrastructure (Widget & Permission Fixes Applied)
 
 ---
 
@@ -17,10 +17,11 @@
 - **Urgency Indicators**: Green (relaxed) / Orange (soon) / Red (urgent)
 - **Deep Links**: Tap widget opens app to flight detail
 - **Empty State**: "No upcoming flights" with subtle subtitle
+- **iOS 17+ Compatible**: Uses containerBackground API, theme adaptive
 
 ### 2. App Infrastructure
 - **Flight Detection Service**: 3-tier priority scanning (structured → keywords → regex)
-- **Calendar Integration**: EventKit with iOS 17+ support
+- **Calendar Integration**: EventKit with iOS 17+ support (NSCalendarsFullAccessUsageDescription)
 - **Leave Time Calculator**: Computes optimal departure with buffers
 - **App Groups**: Shared data between app and widget (`group.com.gofast.shared`)
 - **Mock Data Generator**: AA123/DMK test flight for development
@@ -30,6 +31,7 @@
 - **Progress Bar**: Visual progress tracking
 - **Slide Transitions**: Smooth animations between steps
 - **Permission Pre-prompt**: Contextual explanation before system dialog (40-60% better acceptance)
+- **Permission Status Handling**: Checks auth state first, auto-redirects to Settings if denied
 - **Mock Flight Option**: Zero-friction testing available
 - **Debug Access**: Hidden 5-tap gesture or #if DEBUG builds
 
@@ -88,6 +90,7 @@ GoFast/
 │   ├── SharedDataService.swift      # Shared service (copy)
 │   ├── MockFlightData.swift         # Shared mock data (copy)
 │   ├── Views/
+│   │   ├── WidgetContainer.swift    # iOS 17+ containerBackground wrapper
 │   │   ├── SmallFlightWidget.swift  # Compact layout
 │   │   └── MediumFlightWidget.swift # Expanded layout
 │   └── Info.plist
@@ -130,9 +133,9 @@ GoFast/
 
 ## 📊 Current Stats
 
-- **Total Swift Files**: 28
-- **New Files in Phase 1**: 13
-- **Lines of Code**: ~5,500 (estimated)
+- **Total Swift Files**: 29
+- **New Files in Phase 1**: 14
+- **Lines of Code**: ~5,600 (estimated)
 - **Documentation**: 9 markdown files
 - **Build Status**: ✅ Both targets compile
 - **Test Coverage**: Minimal (template only)
@@ -159,6 +162,11 @@ GoFast/
 - **Debug Access**: 5-tap on version number OR `#if DEBUG` builds
 - **Mock Data**: AA123/DMK flight for development testing
 - **Design**: Uber/Airbnb quality with custom illustrations
+
+### Recent Fixes (2026-02-02)
+- **Widget iOS 17+**: Fixed containerBackground API warning, now uses proper `.containerBackground(for: .widget)` with theme adaptation
+- **Calendar Permission**: Fixed flow to check authorization status first, properly handles denied/restricted states with Settings redirect
+- **Calendar Capability**: Requires Calendar capability enabled in Xcode (Signing & Capabilities)
 
 ---
 
