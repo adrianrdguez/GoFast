@@ -1,7 +1,7 @@
 # GoFast - Project Status
 
 **Last Updated**: 2026-02-02  
-**Current Status**: ✅ Phase 1 Complete - Onboarding & Core Infrastructure (Widget & Permission Fixes Applied)
+**Current Status**: 🚧 Phase 2 - Google Calendar Integration (Primary Data Source)
 
 ---
 
@@ -21,7 +21,12 @@
 
 ### 2. App Infrastructure
 - **Flight Detection Service**: 3-tier priority scanning (structured → keywords → regex)
-- **Calendar Integration**: EventKit with iOS 17+ support (NSCalendarsFullAccessUsageDescription)
+- **Google Calendar Integration**: Primary data source with OAuth2
+  - Manual OAuth implementation (ASWebAuthenticationSession)
+  - Secure token storage (Keychain)
+  - Local flight filtering with confidence scoring
+  - Actor-based token refresh (race condition protection)
+- **Apple Calendar Fallback**: EventKit with iOS 17+ support
 - **Leave Time Calculator**: Computes optimal departure with buffers
 - **App Groups**: Shared data between app and widget (`group.com.gofast.shared`)
 - **Mock Data Generator**: AA123/DMK test flight for development
@@ -75,12 +80,20 @@ GoFast/
 │   ├── ViewModels/
 │   │   ├── FlightDebugViewModel.swift        # Debug screen logic
 │   │   └── OnboardingViewModel.swift         # Onboarding state
+│   ├── Resources/
+│   │   └── GoogleOAuthConfig.plist           # Google OAuth configuration
 │   └── Services/
-│       ├── FlightDetectionService.swift      # Calendar scanning
+│       ├── FlightDetectionService.swift      # Calendar scanning (Apple)
+│       ├── FlightDetectionCoordinator.swift  # Unified data source coordinator
+│       ├── FlightDataSource.swift            # Protocol + Google/Apple implementations
+│       ├── GoogleCalendarAuthService.swift   # OAuth2 flow
+│       ├── GoogleCalendarAPIService.swift    # Google Calendar API client
+│       ├── KeychainService.swift             # Secure token storage
 │       ├── LeaveTimeCalculator.swift         # Departure time calc
 │       ├── SharedDataService.swift           # App Groups read/write
 │       ├── MockFlightData.swift              # Test data generator
-│       └── PermissionsManager.swift          # Permission handling
+│       ├── PermissionsManager.swift          # Permission handling
+│       └── SettingsView.swift                # Settings screen
 ├── GoFastWidget/                    # Widget Extension Target
 │   ├── GoFastWidget.swift           # Widget configuration (@main)
 │   ├── FlightTimelineEntry.swift    # Timeline entry + UrgencyLevel
@@ -133,9 +146,9 @@ GoFast/
 
 ## 📊 Current Stats
 
-- **Total Swift Files**: 29
-- **New Files in Phase 1**: 14
-- **Lines of Code**: ~5,600 (estimated)
+- **Total Swift Files**: 35
+- **New Files in Phase 2**: 7 (Google Calendar integration)
+- **Lines of Code**: ~7,200 (estimated)
 - **Documentation**: 9 markdown files
 - **Build Status**: ✅ Both targets compile
 - **Test Coverage**: Minimal (template only)
@@ -168,7 +181,17 @@ GoFast/
 - **Calendar Permission**: Fixed flow to check authorization status first, properly handles denied/restricted states with Settings redirect
 - **Calendar Capability**: Requires Calendar capability enabled in Xcode (Signing & Capabilities)
 
+### New: Google Calendar Integration (2026-02-02)
+- **Primary Data Source**: Google Calendar API replaces Apple Calendar as main flight source
+- **OAuth2 Implementation**: Manual implementation using ASWebAuthenticationSession (no external dependencies)
+- **Secure Storage**: OAuth tokens stored in iOS Keychain
+- **Local Flight Filtering**: Regex-based detection with confidence scoring (flight numbers, IATA codes, keywords)
+- **Race Condition Protection**: Actor-based token refresh prevents concurrent refresh issues
+- **Settings Screen**: Minimal UI to connect/disconnect Google account with last sync timestamp
+- **Apple Calendar Fallback**: Gracefully falls back to Apple Calendar when Google not connected
+- **Data Source Architecture**: Protocol-based abstraction enabling multiple source support
+
 ---
 
-**Status**: Phase 1 COMPLETE ✅ | Ready for Phase 2  
-**Next Action**: Transport deep-links implementation
+**Status**: Phase 2 IN PROGRESS 🚧 | Google Calendar Integration Complete  
+**Next Action**: Testing on real device with Google Cloud credentials

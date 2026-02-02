@@ -178,6 +178,12 @@ enum DetectionSource: String, Codable, CaseIterable {
     /// User manually entered flight (post-MVP feature)
     case manualEntry
     
+    /// Flight from Google Calendar API (primary source)
+    case googleCalendar
+    
+    /// Flight from Apple Calendar (fallback source)
+    case appleCalendar
+    
     /// Confidence level for this detection source (0.0 - 1.0)
     var confidence: Double {
         switch self {
@@ -189,6 +195,10 @@ enum DetectionSource: String, Codable, CaseIterable {
             return 0.40
         case .manualEntry:
             return 1.0
+        case .googleCalendar:
+            return 0.90
+        case .appleCalendar:
+            return 0.70
         }
     }
     
@@ -203,6 +213,10 @@ enum DetectionSource: String, Codable, CaseIterable {
             return "Flight Number Pattern"
         case .manualEntry:
             return "Manual Entry"
+        case .googleCalendar:
+            return "Google Calendar"
+        case .appleCalendar:
+            return "Apple Calendar"
         }
     }
 }

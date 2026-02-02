@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CLIENT_ID</key>
-    <string>YOUR_CLIENT_ID.apps.googleusercontent.com</string>
+    <string>828333328781-utrgnhrj08q50da3jvj4fct596vtnafr.apps.googleusercontent.com</string>
     <key>REDIRECT_URI</key>
     <string>com.gofast:/oauth2redirect</string>
     <key>AUTH_ENDPOINT</key>

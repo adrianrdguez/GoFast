@@ -48,7 +48,7 @@ class GoogleCalendarDataSource: FlightDataSource {
     func fetchFlights() async throws -> [Flight] {
         let events = try await apiService.fetchUpcomingEvents()
         
-        let flightsWithConfidence = events.compactMap { event -> (flight: Flight, confidence: Double)?
+        let flightsWithConfidence: [(flight: Flight, confidence: Double)] = events.compactMap { event in
             guard let flight = self.parseFlight(from: event) else { return nil }
             let confidence = apiService.confidenceScore(for: event)
             return (flight, confidence)
@@ -154,7 +154,7 @@ class AppleCalendarDataSource: FlightDataSource {
     func fetchFlights() async throws -> [Flight] {
         let status = EKEventStore.authorizationStatus(for: .event)
         guard status == .fullAccess || status == .authorized else {
-            throw FlightDetectionError.calendarAccessDenied
+            throw FlightDetectionError.calendarAccessRestricted
         }
         
         // Fetch events from next 90 days
@@ -239,39 +239,3 @@ class AppleCalendarDataSource: FlightDataSource {
     }
 }
 
-// MARK: - Detection Source Extension
-
-extension Flight {
-    enum DetectionSource {
-        case structuredEvent
-        case keywordMatch
-        case flightNumberRegex
-        case manualEntry
-        case googleCalendar  // Primary source
-        case appleCalendar   // Fallback source
-        
-        var displayName: String {
-            switch self {
-            case .googleCalendar:
-                return "Google Calendar"
-            case .appleCalendar:
-                return "Apple Calendar"
-            case .manualEntry:
-                return "Manual Entry"
-            default:
-                return "Calendar"
-            }
-        }
-    }
-}
-
-enum FlightDetectionError: Error, LocalizedError {
-    case calendarAccessDenied
-    
-    var errorDescription: String? {
-        switch self {
-        case .calendarAccessDenied:
-            return "Calendar access denied - please enable in Settings"
-        }
-    }
-}

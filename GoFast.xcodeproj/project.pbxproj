@@ -61,6 +61,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8B8062DC2F308779008E9618 /* Exceptions for "GoFast" folder in "GoFast" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8B8C69C52F2FB2070058EB78 /* GoFast */;
+		};
 		8B8C6A302F2FC73D0058EB78 /* Exceptions for "GoFastWidget" folder in "GoFastWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -73,6 +80,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8B8C69C82F2FB2070058EB78 /* GoFast */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8B8062DC2F308779008E9618 /* Exceptions for "GoFast" folder in "GoFast" target */,
+			);
 			path = GoFast;
 			sourceTree = "<group>";
 		};
@@ -519,6 +529,7 @@
 				DEVELOPMENT_TEAM = RVTR2G5D6Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GoFast/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Read the user flight in calendar";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -553,6 +564,7 @@
 				DEVELOPMENT_TEAM = RVTR2G5D6Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GoFast/Info.plist;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Read the user flight in calendar";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

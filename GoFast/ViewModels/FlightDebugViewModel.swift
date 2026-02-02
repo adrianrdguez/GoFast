@@ -200,6 +200,10 @@ extension DetectionSource {
             return .yellow
         case .manualEntry:
             return .blue
+        case .googleCalendar:
+            return .purple
+        case .appleCalendar:
+            return .cyan
         }
     }
     
@@ -214,6 +218,10 @@ extension DetectionSource {
             return "Regex"
         case .manualEntry:
             return "Manual"
+        case .googleCalendar:
+            return "Google"
+        case .appleCalendar:
+            return "Apple"
         }
     }
 }
