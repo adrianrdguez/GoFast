@@ -7,11 +7,14 @@
 //
 
 import SwiftUI
+import AuthenticationServices
 
 struct SettingsView: View {
     @ObservedObject private var authService = GoogleCalendarAuthService.shared
     @State private var coordinatorStatus: String = ""
     @State private var showDisconnectConfirmation = false
+    @State private var showErrorAlert = false
+    @State private var errorMessage: String?
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -19,7 +22,25 @@ struct SettingsView: View {
             List {
                 // Google Calendar Section
                 Section("Calendar Connection") {
-                    if authService.isSignedIn {
+                    if let configError = authService.configError {
+                        // Configuration error state
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Configuration Error")
+                                    .font(.body)
+                                    .foregroundColor(.red)
+                                
+                                Text(configError)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                        }
+                    } else if authService.isSignedIn {
                         // Connected state
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
@@ -60,6 +81,7 @@ struct SettingsView: View {
                             connectGoogleCalendar()
                         }
                         .foregroundColor(.blue)
+                        .disabled(!authService.isConfigValid)
                     }
                 }
                 
@@ -68,9 +90,41 @@ struct SettingsView: View {
                     Text(coordinatorStatus)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .onAppear {
-                            updateStatus()
+                }
+                
+                // Debug Info
+                Section("Debug Info") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Config Valid:")
+                                .font(.caption)
+                            Spacer()
+                            Text(authService.isConfigValid ? "✅ Yes" : "❌ No")
+                                .font(.caption)
+                                .foregroundColor(authService.isConfigValid ? .green : .red)
                         }
+                        
+                        if let configError = authService.configError {
+                            HStack {
+                                Text("Error:")
+                                    .font(.caption)
+                                Spacer()
+                                Text(configError)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                        }
+                        
+                        HStack {
+                            Text("Signed In:")
+                                .font(.caption)
+                            Spacer()
+                            Text(authService.isSignedIn ? "✅ Yes" : "❌ No")
+                                .font(.caption)
+                                .foregroundColor(authService.isSignedIn ? .green : .red)
+                        }
+                    }
                 }
                 
                 // About
@@ -100,6 +154,15 @@ struct SettingsView: View {
             } message: {
                 Text("This will remove your Google Calendar connection and stop syncing flight data.")
             }
+            .alert("Connection Error", isPresented: $showErrorAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage ?? "An unknown error occurred")
+            }
+            .onAppear {
+                print("[SettingsView] onAppear - Config valid: \(authService.isConfigValid), Error: \(authService.configError ?? "none")")
+                updateStatus()
+            }
         }
     }
     
@@ -119,7 +182,14 @@ struct SettingsView: View {
     }
     
     private func connectGoogleCalendar() {
-        // Trigger OAuth flow
+        // Validate config first
+        guard authService.isConfigValid else {
+            errorMessage = authService.configError ?? "OAuth configuration is invalid"
+            showErrorAlert = true
+            return
+        }
+        
+        // Trigger OAuth flow - the auth service will handle finding the window
         Task {
             do {
                 _ = try await authService.signIn()
@@ -127,6 +197,8 @@ struct SettingsView: View {
                 // Optionally trigger a flight sync immediately
             } catch {
                 print("[Settings] Failed to connect: \(error)")
+                errorMessage = error.localizedDescription
+                showErrorAlert = true
             }
         }
     }

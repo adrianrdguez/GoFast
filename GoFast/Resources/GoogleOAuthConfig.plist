@@ -5,7 +5,7 @@
     <key>CLIENT_ID</key>
     <string>828333328781-utrgnhrj08q50da3jvj4fct596vtnafr.apps.googleusercontent.com</string>
     <key>REDIRECT_URI</key>
-    <string>com.gofast:/oauth2redirect</string>
+    <string>com.gofast://oauth2redirect</string>
     <key>AUTH_ENDPOINT</key>
     <string>https://accounts.google.com/o/oauth2/v2/auth</string>
     <key>TOKEN_ENDPOINT</key>

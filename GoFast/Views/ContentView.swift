@@ -50,20 +50,48 @@ struct ContentView: View {
     // MARK: - Status Header
     
     private var statusHeader: some View {
-        HStack {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 10, height: 10)
+        VStack(spacing: 8) {
+            HStack {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 10, height: 10)
+                
+                Text(viewModel.statusMessage)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                if viewModel.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                }
+            }
             
-            Text(viewModel.statusMessage)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Spacer()
-            
-            if viewModel.isLoading {
-                ProgressView()
-                    .scaleEffect(0.8)
+            // Data source info
+            if let source = viewModel.activeDataSource {
+                HStack(spacing: 8) {
+                    Image(systemName: dataSourceIcon)
+                        .font(.caption)
+                        .foregroundColor(dataSourceColor)
+                    
+                    Text(source)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(dataSourceColor)
+                    
+                    if let lastSync = viewModel.lastSyncDate {
+                        Text("•")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text(formatRelativeDate(lastSync))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                }
             }
         }
         .padding()
@@ -87,6 +115,34 @@ struct ContentView: View {
         }
     }
     
+    private var dataSourceColor: Color {
+        switch viewModel.activeDataSource {
+        case "Google Calendar":
+            return .purple
+        case "Apple Calendar":
+            return .cyan
+        default:
+            return .secondary
+        }
+    }
+    
+    private var dataSourceIcon: String {
+        switch viewModel.activeDataSource {
+        case "Google Calendar":
+            return "globe"
+        case "Apple Calendar":
+            return "calendar"
+        default:
+            return "questionmark.circle"
+        }
+    }
+    
+    private func formatRelativeDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+    
     // MARK: - Permission Section
     
     private var permissionSection: some View {
@@ -94,7 +150,23 @@ struct ContentView: View {
             Text("Calendar Access")
                 .font(.headline)
             
-            if viewModel.calendarAccessStatus == .notDetermined {
+            // Data source status
+            if let source = viewModel.activeDataSource {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(source) connected")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        if let lastSync = viewModel.lastSyncDate {
+                            Text("Last sync: \(formatRelativeDate(lastSync))")
+                                .font(.caption)
+                                .foregroundColor(.secondary.opacity(0.7))
+                        }
+                    }
+                }
+            } else if viewModel.calendarAccessStatus == .notDetermined {
                 Text("GoFast scans your calendar to automatically detect upcoming flights and calculate the ideal time to leave for the airport.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -125,6 +197,19 @@ struct ContentView: View {
                         .foregroundColor(.green)
                     Text("Calendar access granted")
                         .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // Google Calendar hint
+            if !viewModel.isGoogleCalendarAvailable && viewModel.activeDataSource == "Apple Calendar" {
+                Divider()
+                
+                HStack {
+                    Image(systemName: "globe")
+                        .foregroundColor(.purple)
+                    Text("Connect Google Calendar for better flight detection with structured data")
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }

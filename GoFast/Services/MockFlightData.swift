@@ -15,8 +15,30 @@ struct MockFlightData {
     static func generate() -> Flight {
         // Use DMK (Don Mueang) as departure airport
         guard let dmkAirport = Airport.find(byIATACode: "DMK") else {
-            // Fallback if airport not found (shouldn't happen)
-            fatalError("DMK airport not found in database")
+            // Fallback if airport not found (shouldn't happen in production)
+            print("[MockFlightData] ❌ DMK airport not found in database")
+            // Return a minimal flight with placeholder data
+            let unknownAirport = Airport(
+                iataCode: "UNK",
+                name: "Unknown Airport",
+                city: "Unknown",
+                countryCode: "XX",
+                latitude: 0.0,
+                longitude: 0.0,
+                timezoneIdentifier: "UTC",
+                isInternationalHub: false
+            )
+            return Flight(
+                flightNumber: "AA123",
+                airline: "American Airlines",
+                departureAirport: unknownAirport,
+                arrivalAirport: nil,
+                departureTime: Date().addingTimeInterval(24 * 3600),
+                arrivalTime: nil,
+                detectionSource: .manualEntry,
+                terminal: "Terminal 1",
+                gate: "Gate A12"
+            )
         }
         
         // Create a flight departing tomorrow at 5:30 PM

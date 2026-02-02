@@ -24,7 +24,7 @@ class OnboardingViewModel: ObservableObject {
     // MARK: - Services
     
     let permissionsManager = PermissionsManager()
-    let flightDetectionService = FlightDetectionService()
+    let flightDetectionCoordinator = FlightDetectionCoordinator.shared
     
     // MARK: - Computed Properties
     
@@ -110,7 +110,7 @@ class OnboardingViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let flights = try await flightDetectionService.detectFlights()
+            let flights = try await flightDetectionCoordinator.fetchFlights()
             self.detectedFlights = flights
             
             if flights.isEmpty {

@@ -24,14 +24,41 @@ class FlightDebugViewModel: ObservableObject {
     @Published var calendarAccessStatus: EKAuthorizationStatus = .notDetermined
     @Published var showDebugDetails: [UUID: Bool] = [:] // Flight ID -> show details
     
+    // MARK: - Data Source Info
+    
+    @Published var activeDataSource: String?
+    @Published var lastSyncDate: Date?
+    @Published var isGoogleCalendarAvailable: Bool = false
+    
     // MARK: - Services
     
+    private let coordinator = FlightDetectionCoordinator.shared
     private let detectionService = FlightDetectionService()
     
     // MARK: - Initialization
     
     init() {
         checkCalendarStatus()
+        updateDataSourceInfo()
+    }
+    
+    // MARK: - Data Source Info
+    
+    /// Updates information about available data sources
+    func updateDataSourceInfo() {
+        let sources = coordinator.availableSources
+        
+        // Check if Google Calendar is available
+        isGoogleCalendarAvailable = sources.first(where: { $0.name == "Google Calendar" })?.isAvailable ?? false
+        
+        // Get the active source (first available)
+        if let activeSource = sources.first(where: { $0.isAvailable }) {
+            activeDataSource = activeSource.name
+            lastSyncDate = activeSource.lastSync
+        } else {
+            activeDataSource = nil
+            lastSyncDate = nil
+        }
     }
     
     // MARK: - Calendar Permission
@@ -47,6 +74,7 @@ class FlightDebugViewModel: ObservableObject {
         do {
             let granted = try await detectionService.requestCalendarAccess()
             calendarAccessStatus = granted ? .fullAccess : .denied
+            updateDataSourceInfo()
             updateStatusMessage()
         } catch {
             errorMessage = "Failed to request calendar access: \(error.localizedDescription)"
@@ -56,10 +84,12 @@ class FlightDebugViewModel: ObservableObject {
     
     // MARK: - Flight Detection
     
-    /// Scans calendar and detects flights
+    /// Scans calendar and detects flights using the coordinator
     func scanCalendar() async {
-        guard calendarAccessStatus == .fullAccess || calendarAccessStatus == .authorized else {
-            errorMessage = "Calendar access required. Please grant permission."
+        // Check if any data source is available
+        guard coordinator.hasAvailableSource else {
+            errorMessage = "No calendar connected. Please connect Google Calendar or grant Apple Calendar access in Settings."
+            statusMessage = "No data source available"
             return
         }
         
@@ -68,20 +98,21 @@ class FlightDebugViewModel: ObservableObject {
         statusMessage = "Scanning calendar..."
         
         do {
-            let detectedFlights = try await detectionService.detectFlights()
+            let detectedFlights = try await coordinator.fetchFlights()
             self.flights = detectedFlights
+            
+            // Update data source info after successful scan
+            updateDataSourceInfo()
             
             if detectedFlights.isEmpty {
                 statusMessage = "No flights detected. Try adding a mock flight."
             } else {
-                statusMessage = "Found \(detectedFlights.count) flight(s)"
+                let sourceName = activeDataSource ?? "Unknown"
+                statusMessage = "Found \(detectedFlights.count) flight(s) from \(sourceName)"
             }
-        } catch FlightDetectionError.calendarAccessDenied {
-            errorMessage = "Calendar access denied. Enable in Settings."
-            statusMessage = "Permission denied"
-        } catch FlightDetectionError.noEventsFound {
-            errorMessage = "No calendar events found in the next 90 days."
-            statusMessage = "No events found"
+        } catch FlightDetectionCoordinatorError.noDataSourceAvailable {
+            errorMessage = "No calendar data source available. Please connect Google Calendar or grant Apple Calendar access."
+            statusMessage = "No data source available"
         } catch {
             errorMessage = "Scan failed: \(error.localizedDescription)"
             statusMessage = "Error occurred"

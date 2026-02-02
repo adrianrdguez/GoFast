@@ -124,6 +124,7 @@ struct CompletionView: View {
 
 struct MainAppView: View {
     @State private var showDebug = false
+    @State private var showSettings = false
     
     var body: some View {
         NavigationView {
@@ -149,9 +150,22 @@ struct MainAppView: View {
             }
             .padding()
             .navigationTitle("GoFast")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.title3)
+                    }
+                }
+            }
         }
         .sheet(isPresented: $showDebug) {
             DebugScreen()
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
         }
     }
 }

@@ -92,7 +92,14 @@ class FlightDetectionCoordinator {
     
     /// Checks if any data source is available
     var hasAvailableSource: Bool {
-        sources.contains { $0.isAvailable }
+        // Refresh Apple Calendar availability to avoid stale cache
+        if let appleSource = sources.first(where: { $0 is AppleCalendarDataSource }) as? AppleCalendarDataSource {
+            appleSource.refreshAvailability()
+        }
+        
+        let available = sources.contains { $0.isAvailable }
+        print("[FlightDetection] hasAvailableSource: \(available)")
+        return available
     }
     
     /// Returns a user-friendly status message

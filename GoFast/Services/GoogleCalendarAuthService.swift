@@ -38,24 +38,87 @@ private actor TokenRefreshActor {
     }
 }
 
-/// Manages Google OAuth2 authentication flow
+    /// Manages Google OAuth2 authentication flow
 @MainActor
 class GoogleCalendarAuthService: NSObject, ObservableObject {
     static let shared = GoogleCalendarAuthService()
     
     @Published var isSignedIn: Bool = false
+    @Published var configError: String?
+    @Published var isConfigValid: Bool = false
     
     private var webAuthSession: ASWebAuthenticationSession?
     private var completionHandler: ((Result<GoogleAuthTokens, Error>) -> Void)?
+    private var pendingAuthCode: String?
+    private var pendingExpectedState: String?
     private let tokenRefreshActor = TokenRefreshActor()
+    private var oauthConfig: GoogleOAuthConfig?
     
     // MARK: - Configuration
     
-    private var config: GoogleOAuthConfig {
-        guard let path = Bundle.main.path(forResource: "GoogleOAuthConfig", ofType: "plist"),
-              let data = FileManager.default.contents(atPath: path),
-              let config = try? PropertyListDecoder().decode(GoogleOAuthConfig.self, from: data) else {
-            fatalError("GoogleOAuthConfig.plist not found or invalid")
+    /// Loads OAuth configuration safely without crashing
+    private func loadConfig() -> GoogleOAuthConfig? {
+        // Return cached config if available
+        if let config = oauthConfig {
+            return config
+        }
+        
+        guard let path = Bundle.main.path(forResource: "GoogleOAuthConfig", ofType: "plist") else {
+            print("[GoogleAuth] ❌ GoogleOAuthConfig.plist not found in bundle")
+            configError = "OAuth configuration file not found"
+            isConfigValid = false
+            return nil
+        }
+        
+        guard let data = FileManager.default.contents(atPath: path) else {
+            print("[GoogleAuth] ❌ Failed to read GoogleOAuthConfig.plist")
+            configError = "Failed to read OAuth configuration"
+            isConfigValid = false
+            return nil
+        }
+        
+        do {
+            let config = try PropertyListDecoder().decode(GoogleOAuthConfig.self, from: data)
+            
+            // Validate required fields
+            guard !config.clientId.isEmpty else {
+                print("[GoogleAuth] ❌ CLIENT_ID is empty")
+                configError = "OAuth Client ID is missing"
+                isConfigValid = false
+                return nil
+            }
+            
+            guard !config.redirectUri.isEmpty else {
+                print("[GoogleAuth] ❌ REDIRECT_URI is empty")
+                configError = "OAuth Redirect URI is missing"
+                isConfigValid = false
+                return nil
+            }
+            
+            // Validate redirect URI format
+            if !config.redirectUri.contains("://") {
+                print("[GoogleAuth] ⚠️ Redirect URI may be malformed: \(config.redirectUri)")
+            }
+            
+            print("[GoogleAuth] ✅ Configuration loaded successfully")
+            print("[GoogleAuth] 📍 Redirect URI: \(config.redirectUri)")
+            oauthConfig = config
+            configError = nil
+            isConfigValid = true
+            return config
+            
+        } catch {
+            print("[GoogleAuth] ❌ Failed to decode GoogleOAuthConfig.plist: \(error)")
+            configError = "Invalid OAuth configuration format"
+            isConfigValid = false
+            return nil
+        }
+    }
+    
+    /// Returns the OAuth config or throws if invalid
+    private func config() throws -> GoogleOAuthConfig {
+        guard let config = loadConfig() else {
+            throw GoogleAuthError.configNotFound
         }
         return config
     }
@@ -64,6 +127,10 @@ class GoogleCalendarAuthService: NSObject, ObservableObject {
     
     override init() {
         super.init()
+        // Validate config on init so isConfigValid is accurate
+        print("[GoogleAuth] Initializing auth service...")
+        _ = loadConfig()
+        
         // Check if we have valid tokens on init
         Task {
             await checkSignInStatus()
@@ -77,10 +144,20 @@ class GoogleCalendarAuthService: NSObject, ObservableObject {
         isSignedIn = KeychainService.shared.getAccessToken() != nil
     }
     
+    /// Handles OAuth redirect URL from external browser
+    /// This is called by the .onOpenURL handler in GoFastApp
+    func handleRedirect(_ url: URL) {
+        print("[GoogleAuth] 📥 Received redirect URL: \(url)")
+        
+        // The ASWebAuthenticationSession handles the callback internally
+        // This method is a no-op for now but can be used for logging or debugging
+        // The actual callback handling happens in the session's completion handler
+    }
+    
     /// Starts OAuth2 authorization flow
-    func signIn() async throws -> GoogleAuthTokens {
+    func signIn(presentationAnchor: ASPresentationAnchor? = nil) async throws -> GoogleAuthTokens {
         return try await withCheckedThrowingContinuation { continuation in
-            signIn { result in
+            signIn(presentationAnchor: presentationAnchor) { result in
                 continuation.resume(with: result)
             }
         }
@@ -91,12 +168,37 @@ class GoogleCalendarAuthService: NSObject, ObservableObject {
         presentationAnchor: ASPresentationAnchor? = nil,
         completion: @escaping (Result<GoogleAuthTokens, Error>) -> Void
     ) {
+        // Validate configuration first
+        guard isConfigValid else {
+            let error = configError ?? "OAuth configuration is invalid"
+            print("[GoogleAuth] ❌ Cannot start OAuth: \(error)")
+            completion(.failure(GoogleAuthError.configNotFound))
+            return
+        }
+        
+        // Validate we can get the config
+        let currentConfig: GoogleOAuthConfig
+        do {
+            currentConfig = try config()
+        } catch {
+            print("[GoogleAuth] ❌ Failed to load config: \(error)")
+            completion(.failure(error))
+            return
+        }
+        
         // Build authorization URL
         let state = UUID().uuidString
-        let authURL = buildAuthorizationURL(state: state)
+        let authURL: URL
+        do {
+            authURL = try buildAuthorizationURL(state: state)
+        } catch {
+            print("[GoogleAuth] ❌ Failed to build auth URL: \(error)")
+            completion(.failure(error))
+            return
+        }
         
-        // Store completion handler
-        self.completionHandler = completion
+        // Store state for validation
+        pendingExpectedState = state
         
         // Create web auth session
         let session = ASWebAuthenticationSession(
@@ -111,19 +213,43 @@ class GoogleCalendarAuthService: NSObject, ObservableObject {
         }
         
         // Use provided anchor or find key window safely
-        if let anchor = presentationAnchor {
-            session.presentationContextProvider = GooglePresentationAnchor(anchor: anchor)
+        let anchor: ASPresentationAnchor?
+        if let providedAnchor = presentationAnchor {
+            anchor = providedAnchor
+            print("[GoogleAuth] Using provided presentation anchor")
         } else {
-            // Try to find key window safely (iOS 15+ approach)
-            if let window = findKeyWindow() {
-                session.presentationContextProvider = GooglePresentationAnchor(anchor: window)
-            }
+            anchor = findKeyWindow()
+            print("[GoogleAuth] Using found key window")
         }
         
+        // Validate we have a valid presentation anchor
+        guard let validAnchor = anchor else {
+            print("[GoogleAuth] ❌ No valid window found for OAuth presentation")
+            completion(.failure(GoogleAuthError.noPresentationContext))
+            return
+        }
+        
+        print("[GoogleAuth] Window found: \(validAnchor)")
+        print("[GoogleAuth] Window is key: \(validAnchor.isKeyWindow)")
+        print("[GoogleAuth] Window frame: \(validAnchor.frame)")
+        
+        let presentationProvider = GooglePresentationAnchor(anchor: validAnchor)
+        session.presentationContextProvider = presentationProvider
         session.prefersEphemeralWebBrowserSession = false
         
         self.webAuthSession = session
-        session.start()
+        
+        // Start the session
+        print("[GoogleAuth] Attempting to start session...")
+        let started = session.start()
+        if !started {
+            print("[GoogleAuth] ❌ Failed to start ASWebAuthenticationSession")
+            print("[GoogleAuth] Session state: \(session)")
+            completion(.failure(GoogleAuthError.sessionStartFailed))
+            return
+        }
+        
+        print("[GoogleAuth] ✅ OAuth session started successfully")
     }
     
     /// Refreshes access token using refresh token with race condition protection
@@ -143,13 +269,15 @@ class GoogleCalendarAuthService: NSObject, ObservableObject {
                 }
             }
             
-            let url = URL(string: self.config.tokenEndpoint)!
+            let currentConfig = try self.config()
+            
+            let url = URL(string: currentConfig.tokenEndpoint)!
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
             
             let bodyParams = [
-                "client_id": self.config.clientId,
+                "client_id": currentConfig.clientId,
                 "grant_type": "refresh_token",
                 "refresh_token": refreshToken
             ]
@@ -202,25 +330,90 @@ class GoogleCalendarAuthService: NSObject, ObservableObject {
     // MARK: - Private Methods
     
     private func findKeyWindow() -> ASPresentationAnchor? {
-        // Modern iOS approach - safe for iOS 15+
-        return UIApplication.shared.connectedScenes
+        print("[GoogleAuth] Searching for presentation window...")
+        
+        // Method 1: Get the key window directly (works on iOS 13+)
+        if let keyWindow = UIApplication.shared.keyWindow {
+            print("[GoogleAuth] Found key window via UIApplication.shared.keyWindow")
+            return keyWindow
+        }
+        
+        // Method 2: Get the active window scene from connected scenes
+        let activeScenes = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first { $0.isKeyWindow }
+            .filter { $0.activationState == .foregroundActive }
+        
+        print("[GoogleAuth] Found \(activeScenes.count) active window scenes")
+        
+        for windowScene in activeScenes {
+            // Try to get the key window
+            if let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }) {
+                print("[GoogleAuth] Found key window in active scene")
+                return keyWindow
+            }
+            
+            // Fallback: get first window
+            if let firstWindow = windowScene.windows.first {
+                print("[GoogleAuth] Found first window in active scene")
+                return firstWindow
+            }
+        }
+        
+        // Method 3: Check all scenes (including inactive)
+        print("[GoogleAuth] Checking all scenes...")
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            print("[GoogleAuth] Checking scene with activation state: \(windowScene.activationState)")
+            
+            if let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }) {
+                print("[GoogleAuth] Found key window in non-active scene")
+                return keyWindow
+            }
+            
+            if let firstWindow = windowScene.windows.first {
+                print("[GoogleAuth] Found first window in non-active scene")
+                return firstWindow
+            }
+        }
+        
+        // Method 4: Last resort - try to get any window from any scene
+        print("[GoogleAuth] Last resort: getting any available window...")
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                print("[GoogleAuth] Found window - isHidden: \(window.isHidden), alpha: \(window.alpha)")
+                if !window.isHidden && window.alpha > 0 {
+                    return window
+                }
+            }
+        }
+        
+        print("[GoogleAuth] ❌ Could not find any valid window for presentation")
+        return nil
     }
     
-    private func buildAuthorizationURL(state: String) -> URL {
-        var components = URLComponents(string: config.authEndpoint)!
+    private func buildAuthorizationURL(state: String) throws -> URL {
+        let currentConfig = try config()
+        
+        guard var components = URLComponents(string: currentConfig.authEndpoint) else {
+            throw GoogleAuthError.configNotFound
+        }
+        
         components.queryItems = [
-            URLQueryItem(name: "client_id", value: config.clientId),
-            URLQueryItem(name: "redirect_uri", value: config.redirectUri),
+            URLQueryItem(name: "client_id", value: currentConfig.clientId),
+            URLQueryItem(name: "redirect_uri", value: currentConfig.redirectUri),
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope", value: config.scopes.joined(separator: " ")),
+            URLQueryItem(name: "scope", value: currentConfig.scopes.joined(separator: " ")),
             URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "access_type", value: "offline"),
             URLQueryItem(name: "prompt", value: "consent") // Force consent to get refresh token
         ]
-        return components.url!
+        
+        guard let url = components.url else {
+            throw GoogleAuthError.configNotFound
+        }
+        
+        return url
     }
     
     private func handleCallback(
@@ -274,16 +467,18 @@ class GoogleCalendarAuthService: NSObject, ObservableObject {
     }
     
     private func exchangeCodeForTokens(code: String) async throws -> GoogleAuthTokens {
-        let url = URL(string: config.tokenEndpoint)!
+        let currentConfig = try config()
+        
+        let url = URL(string: currentConfig.tokenEndpoint)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
         let bodyParams = [
-            "client_id": config.clientId,
+            "client_id": currentConfig.clientId,
             "code": code,
             "grant_type": "authorization_code",
-            "redirect_uri": config.redirectUri
+            "redirect_uri": currentConfig.redirectUri
         ]
         request.httpBody = bodyParams.percentEncoded()
         
@@ -343,6 +538,14 @@ struct GoogleOAuthConfig: Codable {
     let authEndpoint: String
     let tokenEndpoint: String
     let scopes: [String]
+    
+    enum CodingKeys: String, CodingKey {
+        case clientId = "CLIENT_ID"
+        case redirectUri = "REDIRECT_URI"
+        case authEndpoint = "AUTH_ENDPOINT"
+        case tokenEndpoint = "TOKEN_ENDPOINT"
+        case scopes = "SCOPES"
+    }
 }
 
 struct GoogleAuthTokens {
@@ -374,6 +577,8 @@ enum GoogleAuthError: Error, LocalizedError {
     case refreshTokenRevoked
     case serviceDeallocated
     case configNotFound
+    case noPresentationContext
+    case sessionStartFailed
     
     var errorDescription: String? {
         switch self {
@@ -397,6 +602,10 @@ enum GoogleAuthError: Error, LocalizedError {
             return "Authentication service was deallocated"
         case .configNotFound:
             return "Google OAuth configuration not found"
+        case .noPresentationContext:
+            return "Unable to present OAuth window"
+        case .sessionStartFailed:
+            return "Failed to start OAuth session"
         }
     }
 }

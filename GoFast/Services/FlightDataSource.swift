@@ -140,9 +140,12 @@ class AppleCalendarDataSource: FlightDataSource {
     let sourceName = "Apple Calendar"
     let requiresAuth = false
     
+    private var _isAvailable: Bool = false
+    
     var isAvailable: Bool {
-        let status = EKEventStore.authorizationStatus(for: .event)
-        return status == .fullAccess || status == .authorized
+        // Always check fresh status to avoid stale cache issues
+        refreshAvailability()
+        return _isAvailable
     }
     
     var lastSyncDate: Date? {
@@ -150,6 +153,13 @@ class AppleCalendarDataSource: FlightDataSource {
     }
     
     private let eventStore = EKEventStore()
+    
+    /// Refreshes the availability status by checking current authorization
+    func refreshAvailability() {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        _isAvailable = (status == .fullAccess || status == .authorized)
+        print("[AppleCalendar] Availability refreshed: \(_isAvailable) (status: \(status))")
+    }
     
     func fetchFlights() async throws -> [Flight] {
         let status = EKEventStore.authorizationStatus(for: .event)
