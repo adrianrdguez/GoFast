@@ -21,11 +21,16 @@ struct FlightTimelineProvider: TimelineProvider {
     
     func placeholder(in context: Context) -> FlightTimelineEntry {
         // Placeholder shown when widget is first added
-        FlightTimelineEntry(
+        let mockFlight = MockFlightData.generate()
+        let departureTime = mockFlight.departureTime
+        let timeUntilDeparture = departureTime.timeIntervalSinceNow
+        
+        return FlightTimelineEntry(
             date: Date(),
-            flight: MockFlightData.generate(),
+            flight: mockFlight,
             leaveTime: Date().addingTimeInterval(45 * 60),
             timeUntilLeave: 45 * 60,
+            timeUntilDeparture: timeUntilDeparture,
             isMockData: true
         )
     }
@@ -55,17 +60,33 @@ struct FlightTimelineProvider: TimelineProvider {
         for i in 1..<numberOfEntries {
             let entryDate = currentDate.addingTimeInterval(Double(i) * refreshInterval)
             
-            // Recalculate time until leave for future entries
-            if let leaveTime = entry.leaveTime {
-                let futureTimeUntilLeave = leaveTime.timeIntervalSince(entryDate)
-                let futureEntry = FlightTimelineEntry(
-                    date: entryDate,
-                    flight: entry.flight,
-                    leaveTime: leaveTime,
-                    timeUntilLeave: futureTimeUntilLeave > 0 ? futureTimeUntilLeave : nil,
-                    isMockData: entry.isMockData
-                )
-                entries.append(futureEntry)
+            // Recalculate time values for future entries
+            if let flight = entry.flight {
+                let futureTimeUntilDeparture = flight.departureTime.timeIntervalSince(entryDate)
+                
+                if let leaveTime = entry.leaveTime {
+                    let futureTimeUntilLeave = leaveTime.timeIntervalSince(entryDate)
+                    let futureEntry = FlightTimelineEntry(
+                        date: entryDate,
+                        flight: flight,
+                        leaveTime: leaveTime,
+                        timeUntilLeave: futureTimeUntilLeave > 0 ? futureTimeUntilLeave : nil,
+                        timeUntilDeparture: futureTimeUntilDeparture,
+                        isMockData: entry.isMockData
+                    )
+                    entries.append(futureEntry)
+                } else {
+                    // No leave time calculated yet
+                    let futureEntry = FlightTimelineEntry(
+                        date: entryDate,
+                        flight: flight,
+                        leaveTime: nil,
+                        timeUntilLeave: nil,
+                        timeUntilDeparture: futureTimeUntilDeparture,
+                        isMockData: entry.isMockData
+                    )
+                    entries.append(futureEntry)
+                }
             } else {
                 entries.append(FlightTimelineEntry.empty(date: entryDate))
             }
@@ -82,13 +103,16 @@ struct FlightTimelineProvider: TimelineProvider {
     private func loadCurrentEntry() -> FlightTimelineEntry {
         // Try to load saved flight
         if let flight = sharedDataService.loadFlight() {
-            // Calculate leave time using mock transport for now
-            // In production, this would use real ETA calculation
-            let transportDuration: TimeInterval = 45 * 60 // 45 minutes
-            let bufferTime: TimeInterval = 15 * 60 // 15 minutes
+            // Calculate times
+            let departureTime = flight.departureTime
+            let timeUntilDeparture = departureTime.timeIntervalSinceNow
+            
+            // Calculate leave time using configured travel times
+            let transportDuration = TravelConfig.transportDuration
+            let bufferTime = TravelConfig.buffer
             let airportProcedureTime: TimeInterval = flight.isInternational ? 180 * 60 : 90 * 60
             
-            let leaveTime = flight.departureTime
+            let leaveTime = departureTime
                 .addingTimeInterval(-airportProcedureTime)
                 .addingTimeInterval(-transportDuration)
                 .addingTimeInterval(-bufferTime)
@@ -100,6 +124,7 @@ struct FlightTimelineProvider: TimelineProvider {
                 flight: flight,
                 leaveTime: leaveTime,
                 timeUntilLeave: timeUntilLeave > 0 ? timeUntilLeave : nil,
+                timeUntilDeparture: timeUntilDeparture,
                 isMockData: flight.detectionSource == .manualEntry
             )
         }
@@ -110,19 +135,17 @@ struct FlightTimelineProvider: TimelineProvider {
     
     /// Calculates appropriate refresh interval based on urgency
     private func calculateRefreshInterval(for entry: FlightTimelineEntry) -> TimeInterval {
-        guard let timeUntilLeave = entry.timeUntilLeave, timeUntilLeave > 0 else {
-            return 15 * 60 // 15 minutes default
-        }
-        
-        let minutesUntilLeave = timeUntilLeave / 60
-        
-        // Adaptive refresh based on urgency
-        if minutesUntilLeave < 30 {
-            return 60 // 1 minute for urgent departures
-        } else if minutesUntilLeave < 90 {
-            return 5 * 60 // 5 minutes for soon departures
-        } else {
-            return 15 * 60 // 15 minutes default
+        // Use flight state to determine refresh rate
+        switch entry.flightState {
+        case .goMode:
+            // Refresh frequently during Go Mode
+            return 60 // 1 minute
+        case .prepare:
+            // Moderate refresh during Prepare
+            return 5 * 60 // 5 minutes
+        case .upcoming:
+            // Relaxed refresh for Upcoming
+            return 15 * 60 // 15 minutes
         }
     }
     
