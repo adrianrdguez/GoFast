@@ -124,6 +124,8 @@ struct CompletionView: View {
 
 struct MainAppView: View {
     @State private var showDebug = false
+    @State private var currentFlight: Flight?
+    @State private var isLoading = false
     
     var body: some View {
         NavigationView {
@@ -133,9 +135,14 @@ struct MainAppView: View {
                     .font(.title)
                     .fontWeight(.bold)
                 
-                // Placeholder for main app UI
-                Text("Your flights will appear here")
-                    .foregroundColor(.secondary)
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                } else if let flight = currentFlight {
+                    MainAppFlightCard(flight: flight)
+                } else {
+                    EmptyFlightState()
+                }
                 
                 Spacer()
                 
@@ -153,6 +160,180 @@ struct MainAppView: View {
         .sheet(isPresented: $showDebug) {
             DebugScreen()
         }
+        .onAppear {
+            loadFlight()
+        }
+        .onChange(of: showDebug) { newValue in
+            if !newValue {
+                // Reload when debug screen closes
+                loadFlight()
+            }
+        }
+    }
+    
+    private func loadFlight() {
+        isLoading = true
+        currentFlight = SharedDataService.shared.loadFlight()
+        isLoading = false
+    }
+}
+
+// MARK: - Flight Card
+
+struct MainAppFlightCard: View {
+    let flight: Flight
+    
+    private var urgencyColor: Color {
+        let timeUntil = flight.timeUntilDeparture
+        if timeUntil < 30 * 60 {
+            return .red
+        } else if timeUntil < 90 * 60 {
+            return .orange
+        } else {
+            return .green
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header with flight number and urgency indicator
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let flightNumber = flight.flightNumber {
+                        Text(flightNumber)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                    }
+                    
+                    Text("\(flight.departureAirport.id) → \(flight.arrivalAirport?.id ?? "?")")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                // Urgency indicator
+                Circle()
+                    .fill(urgencyColor)
+                    .frame(width: 12, height: 12)
+            }
+            
+            Divider()
+            
+            // Departure info
+            VStack(alignment: .leading, spacing: 8) {
+                Label {
+                    Text(formatDate(flight.departureTime))
+                } icon: {
+                    Image(systemName: "calendar")
+                        .foregroundColor(.blue)
+                }
+                
+                Label {
+                    Text(formatTime(flight.departureTime))
+                } icon: {
+                    Image(systemName: "clock")
+                        .foregroundColor(.blue)
+                }
+                
+                if let terminal = flight.terminal {
+                    Label {
+                        Text(terminal)
+                    } icon: {
+                        Image(systemName: "building.2")
+                            .foregroundColor(.secondary)
+                    }
+                    .font(.caption)
+                }
+                
+                if let gate = flight.gate {
+                    Label {
+                        Text(gate)
+                    } icon: {
+                        Image(systemName: "door.left.hand.open")
+                            .foregroundColor(.secondary)
+                    }
+                    .font(.caption)
+                }
+            }
+            
+            Divider()
+            
+            // Countdown
+            HStack {
+                Image(systemName: "hourglass")
+                    .foregroundColor(urgencyColor)
+                
+                Text(formatTimeInterval(flight.timeUntilDeparture))
+                    .font(.headline)
+                    .foregroundColor(urgencyColor)
+                
+                Spacer()
+                
+                Text("until departure")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(Color(UIColor.systemBackground))
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
+    private func formatTimeInterval(_ interval: TimeInterval) -> String {
+        let hours = Int(interval / 3600)
+        let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
+        
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else if minutes > 0 {
+            return "\(minutes)m"
+        } else if interval > 0 {
+            return "< 1m"
+        } else {
+            return "Departed"
+        }
+    }
+}
+
+// MARK: - Empty State
+
+struct EmptyFlightState: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "airplane")
+                .font(.system(size: 60))
+                .foregroundColor(.secondary.opacity(0.5))
+            
+            Text("No Upcoming Flights")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            
+            Text("Add a flight to your calendar or use the debug screen to add a test flight.")
+                .font(.subheadline)
+                .foregroundColor(.secondary.opacity(0.7))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+        .frame(maxWidth: .infinity, minHeight: 200)
+        .padding()
+        .background(Color(UIColor.systemGray6))
+        .cornerRadius(16)
     }
 }
 

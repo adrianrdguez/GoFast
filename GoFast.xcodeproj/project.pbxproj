@@ -61,6 +61,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C67C7AEA-D7F8-4250-82AF-BA5414749FAC /* Exceptions for "GoFast" folder in "GoFast" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8B8C69C52F2FB2070058EB78 /* GoFast */;
+		};
 		8B8C6A302F2FC73D0058EB78 /* Exceptions for "GoFastWidget" folder in "GoFastWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -73,6 +80,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8B8C69C82F2FB2070058EB78 /* GoFast */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C67C7AEA-D7F8-4250-82AF-BA5414749FAC /* Exceptions for "GoFast" folder in "GoFast" target */,
+			);
 			path = GoFast;
 			sourceTree = "<group>";
 		};

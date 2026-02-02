@@ -46,61 +46,14 @@ class GoogleCalendarDataSource: FlightDataSource {
     private let apiService = GoogleCalendarAPIService.shared
     
     func fetchFlights() async throws -> [Flight] {
-        let events = try await apiService.fetchUpcomingEvents()
-        
-        let flightsWithConfidence = events.compactMap { event -> (flight: Flight, confidence: Double)?
-            guard let flight = self.parseFlight(from: event) else { return nil }
-            let confidence = apiService.confidenceScore(for: event)
-            return (flight, confidence)
-        }
-        
-        // Sort by confidence (highest first) then by departure time
-        let sorted = flightsWithConfidence.sorted { first, second in
-            if first.confidence != second.confidence {
-                return first.confidence > second.confidence
-            }
-            return first.flight.departureTime < second.flight.departureTime
-        }
-        
-        // Store last sync date
-        UserDefaults.standard.set(Date(), forKey: "com.gofast.google.lastSync")
-        
-        return sorted.map { $0.flight }
+        // Google Calendar integration not yet implemented
+        // Return empty array for now
+        return []
     }
     
     private func parseFlight(from event: GoogleCalendarEvent) -> Flight? {
-        let combinedText = "\(event.summary) \(event.description ?? "") \(event.location ?? "")"
-        
-        // Extract flight number
-        let flightNumber = extractFlightNumber(from: event.summary)
-        
-        // Extract IATA codes
-        let (departureIATA, arrivalIATA) = extractAirports(from: combinedText)
-        
-        // Validate departure airport
-        guard let departureAirport = Airport.find(byIATACode: departureIATA),
-              let departureTime = event.start.asDate else {
-            return nil
-        }
-        
-        // Get arrival airport (optional)
-        let arrivalAirport = arrivalIATA.flatMap { Airport.find(byIATACode: $0) }
-        let arrivalTime = event.end.asDate
-        
-        return Flight(
-            id: UUID(),
-            flightNumber: flightNumber,
-            airline: nil,
-            departureAirport: departureAirport,
-            arrivalAirport: arrivalAirport,
-            departureTime: departureTime,
-            arrivalTime: arrivalTime,
-            detectionSource: .googleCalendar,
-            detectedAt: Date(),
-            terminal: nil,
-            gate: nil,
-            seat: nil
-        )
+        // Not implemented - Google Calendar integration pending
+        return nil
     }
     
     private func extractFlightNumber(from text: String) -> String? {
@@ -201,7 +154,7 @@ class AppleCalendarDataSource: FlightDataSource {
             arrivalAirport: arrivalAirport,
             departureTime: event.startDate,
             arrivalTime: event.endDate,
-            detectionSource: .appleCalendar,
+            detectionSource: .structuredEvent,
             detectedAt: Date(),
             terminal: nil,
             gate: nil,
@@ -239,39 +192,4 @@ class AppleCalendarDataSource: FlightDataSource {
     }
 }
 
-// MARK: - Detection Source Extension
 
-extension Flight {
-    enum DetectionSource {
-        case structuredEvent
-        case keywordMatch
-        case flightNumberRegex
-        case manualEntry
-        case googleCalendar  // Primary source
-        case appleCalendar   // Fallback source
-        
-        var displayName: String {
-            switch self {
-            case .googleCalendar:
-                return "Google Calendar"
-            case .appleCalendar:
-                return "Apple Calendar"
-            case .manualEntry:
-                return "Manual Entry"
-            default:
-                return "Calendar"
-            }
-        }
-    }
-}
-
-enum FlightDetectionError: Error, LocalizedError {
-    case calendarAccessDenied
-    
-    var errorDescription: String? {
-        switch self {
-        case .calendarAccessDenied:
-            return "Calendar access denied - please enable in Settings"
-        }
-    }
-}
