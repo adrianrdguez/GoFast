@@ -56,9 +56,25 @@ class PermissionsManager: ObservableObject {
     }
     
     /// Direct system permission request (after rationale shown)
+    /// - Returns: Bool indicating if permission was granted
+    /// - Important: Only call when status is .notDetermined. For denied/restricted, use openAppSettings()
     func requestCalendarPermission() async -> Bool {
+        // Check current status first
+        updateAuthorizationStatus()
+        
+        // If already denied or restricted, we can't request again - user must go to Settings
+        if calendarAuthorizationStatus == .denied || calendarAuthorizationStatus == .restricted {
+            return false
+        }
+        
+        // If already authorized, just return true
+        if hasCalendarAccess {
+            return true
+        }
+        
+        // Only proceed if status is .notDetermined
         guard calendarAuthorizationStatus == .notDetermined else {
-            return calendarAuthorizationStatus == .authorized || calendarAuthorizationStatus == .fullAccess
+            return hasCalendarAccess
         }
         
         isRequestingPermission = true
@@ -90,6 +106,29 @@ class PermissionsManager: ObservableObject {
             print("[PermissionsManager] Error requesting calendar access: \(error)")
             updateAuthorizationStatus()
             return false
+        }
+    }
+    
+    /// Returns the appropriate action for the current permission state
+    enum PermissionAction {
+        case requestPermission    // Show system dialog
+        case openSettings         // Go to Settings app
+        case proceed              // Already have access
+    }
+    
+    /// Determines what action should be taken based on current authorization status
+    func determinePermissionAction() -> PermissionAction {
+        updateAuthorizationStatus()
+        
+        switch calendarAuthorizationStatus {
+        case .notDetermined:
+            return .requestPermission
+        case .denied, .restricted:
+            return .openSettings
+        case .authorized, .fullAccess, .writeOnly:
+            return .proceed
+        @unknown default:
+            return .openSettings
         }
     }
     

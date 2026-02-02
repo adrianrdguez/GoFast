@@ -8,6 +8,7 @@ import SwiftUI
 struct OnboardingStep2Permissions: View {
     @ObservedObject var viewModel: OnboardingViewModel
     @State private var showDeniedState = false
+    @State private var shouldOpenSettings = false
     
     var body: some View {
         VStack(spacing: 24) {
@@ -15,26 +16,30 @@ struct OnboardingStep2Permissions: View {
             CalendarScanIllustration()
                 .frame(height: 200)
             
-            Text("Access Your Calendar")
+            Text(showDeniedState ? "Calendar Access Needed" : "Access Your Calendar")
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("GoFast scans your calendar to automatically detect upcoming flights and calculate the ideal time to leave for the airport.")
+            Text(showDeniedState 
+                 ? "To automatically detect your flights, GoFast needs access to your calendar. Please enable it in Settings."
+                 : "GoFast scans your calendar to automatically detect upcoming flights and calculate the ideal time to leave for the airport.")
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
             
-            Text("We never read other events.")
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(.blue)
+            if !showDeniedState {
+                Text("We never read other events.")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.blue)
+            }
             
             Spacer()
             
             // State-based UI
             if showDeniedState {
-                // Permission denied UI
+                // Permission denied UI - Settings button
                 VStack(spacing: 12) {
                     Button("Open Settings") {
                         viewModel.permissionsManager.openAppSettings()
@@ -51,15 +56,9 @@ struct OnboardingStep2Permissions: View {
             } else {
                 // Normal permission request UI
                 VStack(spacing: 12) {
-                    Button("Grant Calendar Access") {
+                    Button(shouldOpenSettings ? "Open Settings" : "Grant Calendar Access") {
                         Task {
-                            let granted = await viewModel.permissionsManager.requestCalendarPermission()
-                            if granted {
-                                await viewModel.scanCalendarForFlights()
-                                viewModel.nextStep()
-                            } else {
-                                showDeniedState = true
-                            }
+                            await handlePermissionAction()
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -75,10 +74,60 @@ struct OnboardingStep2Permissions: View {
         }
         .padding()
         .onAppear {
-            viewModel.permissionsManager.updateAuthorizationStatus()
-            if viewModel.permissionsManager.isCalendarDenied {
-                showDeniedState = true
+            checkInitialPermissionState()
+        }
+    }
+    
+    /// Check permission status when view appears and set appropriate UI state
+    private func checkInitialPermissionState() {
+        let action = viewModel.permissionsManager.determinePermissionAction()
+        
+        switch action {
+        case .requestPermission:
+            // Normal flow - show request button
+            showDeniedState = false
+            shouldOpenSettings = false
+            
+        case .openSettings:
+            // Already denied or restricted - show denied UI immediately
+            showDeniedState = true
+            shouldOpenSettings = true
+            
+        case .proceed:
+            // Already have access - proceed to next step
+            Task {
+                await viewModel.scanCalendarForFlights()
+                viewModel.nextStep()
             }
+        }
+    }
+    
+    /// Handle the permission button tap based on current authorization status
+    private func handlePermissionAction() async {
+        let action = viewModel.permissionsManager.determinePermissionAction()
+        
+        switch action {
+        case .requestPermission:
+            // First time request - show system dialog
+            let granted = await viewModel.permissionsManager.requestCalendarPermission()
+            if granted {
+                await viewModel.scanCalendarForFlights()
+                viewModel.nextStep()
+            } else {
+                // User denied in system dialog - show denied state
+                withAnimation {
+                    showDeniedState = true
+                }
+            }
+            
+        case .openSettings:
+            // Already denied - open Settings app
+            viewModel.permissionsManager.openAppSettings()
+            
+        case .proceed:
+            // Already authorized - proceed
+            await viewModel.scanCalendarForFlights()
+            viewModel.nextStep()
         }
     }
 }

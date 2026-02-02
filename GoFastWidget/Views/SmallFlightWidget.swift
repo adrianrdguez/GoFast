@@ -16,80 +16,82 @@ struct SmallFlightWidget: View {
         if let flight = entry.flight {
             flightContent(flight: flight)
         } else {
-            EmptyStateView()
+            EmptyStateWidgetContainer {
+                EmptyStateContent()
+            }
         }
     }
     
     private func flightContent(flight: Flight) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // Top: Flight number with icon
-            HStack(spacing: 4) {
-                Image(systemName: "airplane")
-                    .font(.caption)
-                    .foregroundColor(urgencyColor)
-                
-                if let flightNumber = flight.flightNumber {
-                    Text(flightNumber)
+        WidgetContainer(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 4) {
+                // Top: Flight number with icon
+                HStack(spacing: 4) {
+                    Image(systemName: "airplane")
                         .font(.caption)
-                        .fontWeight(.semibold)
-                } else {
-                    Text("Flight")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                // Urgency indicator
-                Image(systemName: entry.urgencyLevel.iconName)
-                    .font(.caption2)
-                    .foregroundColor(urgencyColor)
-            }
-            
-            Spacer()
-            
-            // Middle: Leave by time
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Leave by")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                
-                if let leaveTime = entry.leaveTime {
-                    Text(formatTime(leaveTime))
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-            }
-            
-            Spacer()
-            
-            // Bottom: Countdown with transport icon
-            HStack(spacing: 4) {
-                Image(systemName: "car.fill")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                
-                if let timeUntilLeave = entry.timeUntilLeave {
-                    Text(formatCountdown(timeUntilLeave))
-                        .font(.caption)
-                        .fontWeight(.medium)
                         .foregroundColor(urgencyColor)
-                } else {
-                    Text("Departed")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    
+                    if let flightNumber = flight.flightNumber {
+                        Text(flightNumber)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                    } else {
+                        Text("Flight")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    // Urgency indicator
+                    Image(systemName: entry.urgencyLevel.iconName)
+                        .font(.caption2)
+                        .foregroundColor(urgencyColor)
                 }
                 
                 Spacer()
+                
+                // Middle: Leave by time
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Leave by")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    if let leaveTime = entry.leaveTime {
+                        Text(formatTime(leaveTime))
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                }
+                
+                Spacer()
+                
+                // Bottom: Countdown with transport icon
+                HStack(spacing: 4) {
+                    Image(systemName: "car.fill")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    if let timeUntilLeave = entry.timeUntilLeave {
+                        Text(formatCountdown(timeUntilLeave))
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(urgencyColor)
+                    } else {
+                        Text("Departed")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                }
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(Color(UIColor.systemBackground))
     }
     
     private var urgencyColor: Color {
@@ -126,7 +128,9 @@ struct SmallFlightWidget: View {
     }
 }
 
-struct EmptyStateView: View {
+// MARK: - Empty State Content
+
+private struct EmptyStateContent: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: "airplane")
@@ -144,7 +148,5 @@ struct EmptyStateView: View {
                 .foregroundColor(.secondary.opacity(0.7))
         }
         .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(UIColor.systemBackground))
     }
 }
